@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>五行相生可视化</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            position: relative;
+            width: 600px;
+            height: 600px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .element {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .element:hover {
+            transform: scale(1.1);
+        }
+
+        /* 五行颜色定义 */
+        .wood {
+            background-color: #2ecc71;
+        }
+
+        .fire {
+            background-color: #e74c3c;
+        }
+
+        .earth {
+            background-color: #f1c40f;
+        }
+
+        .metal {
+            background-color: #bdc3c7;
+        }
+
+        .water {
+            background-color: #3498db;
+        }
+
+        svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .connection {
+            transition: stroke-width 0.3s ease, stroke 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="container">
+        <!-- 五行元素将通过JavaScript动态添加 -->
+        <svg id="connections" viewBox="0 0 600 600">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7"
+                        refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+                </marker>
+            </defs>
+            <!-- 连接线将通过JavaScript动态添加 -->
+        </svg>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.getElementById('container');
+            const svg = document.getElementById('connections');
+            const centerX = 300; // 容器中心X坐标
+            const centerY = 300; // 容器中心Y坐标
+            const radius = 200;  // 元素中心所在圆的半径
+            const elementRadius = 40; // 元素圆圈半径 (80px直径)
+            const pathRadius = 240;   // 连接线圆弧半径
+
+            // 五行数据
+            const elements = [
+                { name: '木', className: 'wood', angle: 0 },
+                { name: '火', className: 'fire', angle: 72 },
+                { name: '土', className: 'earth', angle: 144 },
+                { name: '金', className: 'metal', angle: 216 },
+                { name: '水', className: 'water', angle: 288 }
+            ];
+
+            // 创建五行元素
+            elements.forEach(element => {
+                // 将角度转换为弧度
+                const radians = (element.angle - 90) * Math.PI / 180; // -90是因为0度需要在顶部
+
+                // 计算元素中心坐标
+                const x = centerX + radius * Math.cos(radians);
+                const y = centerY + radius * Math.sin(radians);
+
+                // 创建元素div
+                const div = document.createElement('div');
+                div.className = `element ${element.className}`;
+                div.textContent = element.name;
+                div.style.left = `${x - elementRadius}px`;
+                div.style.top = `${y - elementRadius}px`;
+                div.dataset.name = element.name;
+
+                // 添加鼠标事件
+                div.addEventListener('mouseenter', function() {
+                    highlightConnections(element.name);
+                });
+
+                div.addEventListener('mouseleave', function() {
+                    resetConnections();
+                });
+
+                container.appendChild(div);
+            });
+
+            // 创建连接线
+            for (let i = 0; i < elements.length; i++) {
+                const startElement = elements[i];
+                const endElement = elements[(i + 1) % elements.length];
+
+                // 计算起点和终点角度 (转换为弧度，并调整为从顶部开始)
+                const startAngle = (startElement.angle - 90) * Math.PI / 180;
+                const endAngle = (endElement.angle - 90) * Math.PI / 180;
+
+                // 计算路径起点和终点 (连接到元素边缘)
+                const startX = centerX + (radius + elementRadius * 0.8) * Math.cos(startAngle);
+                const startY = centerY + (radius + elementRadius * 0.8) * Math.sin(startAngle);
+                const endX = centerX + (radius + elementRadius * 0.8) * Math.cos(endAngle);
+                const endY = centerY + (radius + elementRadius * 0.8) * Math.sin(endAngle);
+
+                // 创建路径
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+
+                // 计算弧线参数
+                // 由于五行均匀分布，我们可以使用A指令绘制圆弧
+                // 大弧标志: 由于我们的角度差是72度，小于180度，所以使用0
+                // 顺时针标志: 使用1表示顺时针
+                const largeArcFlag = 0;
+                const sweepFlag = 1;
+
+                // 构建d属性
+                const d = `M ${startX} ${startY} A ${pathRadius} ${pathRadius} 0 ${largeArcFlag} ${sweepFlag} ${endX} ${endY}`;
+
+                path.setAttribute('d', d);
+                path.setAttribute('stroke', '#666');
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('fill', 'none');
+                path.setAttribute('marker-end', 'url(#arrowhead)');
+                path.setAttribute('class', 'connection');
+                path.dataset.from = startElement.name;
+                path.dataset.to = endElement.name;
+
+                svg.appendChild(path);
+            }
+
+            // 高亮相关连接线
+            function highlightConnections(elementName) {
+                const connections = document.querySelectorAll('.connection');
+                connections.forEach(connection => {
+                    // 高亮当前元素出发和指向当前元素的连接线
+                    if (connection.dataset.from === elementName || connection.dataset.to === elementName) {
+                        connection.setAttribute('stroke-width', '3');
+                        connection.setAttribute('stroke', '#333');
+                    }
+                });
+            }
+
+            // 重置连接线样式
+            function resetConnections() {
+                const connections = document.querySelectorAll('.connection');
+                connections.forEach(connection => {
+                    connection.setAttribute('stroke-width', '2');
+                    connection.setAttribute('stroke', '#666');
+                });
+            }
+        });
+    </script>
+</body>
+</html>
