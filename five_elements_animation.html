@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>五行相生相克可视化（生克制化动画版）</title>
+    <style>
+        /* 颜色调整：网页背景色改为肉色 */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #ffe4c4; /* 肉色背景 */
+        }
+
+        .container {
+            position: relative;
+            width: 600px;
+            height: 600px;
+            background-color: transparent;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .element {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        /* 生克制化动画：设置过渡效果 */
+        .element,
+        .line-generate,
+        .line-restraint {
+            transition: transform 0.3s ease-in-out, stroke-width 0.3s ease, stroke 0.3s ease;
+        }
+
+        /* 五行颜色定义 */
+        .wood {
+            background-color: #2ecc71;
+        }
+
+        .fire {
+            background-color: #e74c3c;
+        }
+
+        .earth {
+            background-color: #f1c40f;
+        }
+
+        /* 颜色调整：金元素改为白色背景，黑色文字 */
+        .metal {
+            background-color: #ffffff;
+            color: #000000;
+        }
+
+        /* 颜色调整：水元素改为黑色背景，白色文字 */
+        .water {
+            background-color: #000000;
+            color: #ffffff;
+        }
+
+        svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        /* 相生线条样式 */
+        .line-generate {
+            stroke: #666;
+            stroke-width: 2px;
+            fill: none;
+            z-index: 2;
+        }
+
+        /* 相克线条样式：黑色实线 */
+        .line-restraint {
+            stroke: #111;
+            stroke-width: 2px;
+            fill: none;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="container">
+        <!-- 五行元素将通过JavaScript动态添加 -->
+        <svg id="connections" viewBox="0 0 600 600">
+            <!-- 定义箭头标记 -->
+            <defs>
+                <!-- 相生箭头 -->
+                <marker id="arrow-generate" markerWidth="10" markerHeight="7"
+                        refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+                </marker>
+                <!-- 相克箭头：黑色 -->
+                <marker id="arrow-restraint" markerWidth="10" markerHeight="7"
+                        refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#111" />
+                </marker>
+            </defs>
+            <!-- 分组以区分层级关系 -->
+            <g class="restraint-lines" style="z-index: 1;"><!-- 相克直线（层级较低） --></g>
+            <g class="generate-lines" style="z-index: 2;"><!-- 相生弧线（层级较高） --></g>
+        </svg>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.getElementById('container');
+            const svg = document.getElementById('connections');
+            const restraintLinesGroup = document.querySelector('.restraint-lines');
+            const generateLinesGroup = document.querySelector('.generate-lines');
+            const centerX = 300; // 容器中心X坐标
+            const centerY = 300; // 容器中心Y坐标
+            const radius = 200;  // 元素中心所在圆的半径
+            const elementRadius = 40; // 元素圆圈半径 (80px直径)
+            const generateRadius = 240; // 相生连接线圆弧半径 (200px + 40px)
+
+            // 五行数据：添加生克关系
+            const elements = [
+                // data-generates: 生的对象 | data-restrains: 克的对象
+                { name: '木', className: 'wood', angle: 0, generates: '火', restrains: '土' },
+                { name: '火', className: 'fire', angle: 72, generates: '土', restrains: '金' },
+                { name: '土', className: 'earth', angle: 144, generates: '金', restrains: '水' },
+                { name: '金', className: 'metal', angle: 216, generates: '水', restrains: '木' },
+                { name: '水', className: 'water', angle: 288, generates: '木', restrains: '火' }
+            ];
+
+            // 相克关系定义（木克土、土克水、水克火、火克金、金克木）
+            const restraintRelations = [
+                { from: '木', to: '土' },
+                { from: '土', to: '水' },
+                { from: '水', to: '火' },
+                { from: '火', to: '金' },
+                { from: '金', to: '木' }
+            ];
+
+            // 计算元素中心坐标并存储
+            elements.forEach(element => {
+                // 将角度转换为弧度 (-90是因为0度需要在顶部)
+                const radians = (element.angle - 90) * Math.PI / 180;
+
+                // 计算元素中心坐标
+                element.centerX = centerX + radius * Math.cos(radians);
+                element.centerY = centerY + radius * Math.sin(radians);
+            });
+
+            // 创建五行元素
+            elements.forEach(element => {
+                // 创建元素div
+                const div = document.createElement('div');
+                div.className = `element ${element.className}`;
+                div.textContent = element.name;
+                div.style.left = `${element.centerX - elementRadius}px`;
+                div.style.top = `${element.centerY - elementRadius}px`;
+                
+                // 添加生克关系数据属性
+                div.dataset.element = element.className;
+                div.dataset.generates = element.generates;
+                div.dataset.restrains = element.restrains;
+
+                // 添加鼠标事件
+                div.addEventListener('mouseenter', function() {
+                    triggerElementAnimation(element.name);
+                });
+
+                div.addEventListener('mouseleave', function() {
+                    resetAllElements();
+                });
+
+                container.appendChild(div);
+            });
+
+            // 触发元素动画（相生和相克）
+            function triggerElementAnimation(elementName) {
+                // 找到当前元素
+                const currentElement = elements.find(el => el.name === elementName);
+                if (!currentElement) return;
+
+                // 高亮相关连接线
+                highlightRelatedLines(elementName);
+
+                // 找到当前元素的DOM节点
+                const currentElementDiv = document.querySelector(`.element.${currentElement.className}`);
+                if (!currentElementDiv) return;
+
+                // 相生动画：当前元素缩小，被生元素放大
+                // 找到被生元素的DOM节点（通过data-generates属性值查找对应的元素名）
+                const generatedElementData = elements.find(el => el.name === currentElement.generates);
+                if (generatedElementData) {
+                    const generatedElementDiv = document.querySelector(`.element.${generatedElementData.className}`);
+                    if (generatedElementDiv) {
+                        // 生方元素缩小
+                        currentElementDiv.style.transform = 'scale(0.9)';
+                        // 被生元素放大
+                        generatedElementDiv.style.transform = 'scale(1.1)';
+                    }
+                }
+
+                // 相克动画：当前元素放大，被克元素缩小
+                // 找到被克元素的DOM节点（通过data-restrains属性值查找对应的元素名）
+                const restrainedElementData = elements.find(el => el.name === currentElement.restrains);
+                if (restrainedElementData) {
+                    const restrainedElementDiv = document.querySelector(`.element.${restrainedElementData.className}`);
+                    if (restrainedElementDiv) {
+                        // 克方元素放大
+                        currentElementDiv.style.transform = 'scale(1.1)';
+                        // 被克元素缩小
+                        restrainedElementDiv.style.transform = 'scale(0.9)';
+                    }
+                }
+            }
+
+            // 高亮相关连接线
+            function highlightRelatedLines(elementName) {
+                // 高亮相生连接线
+                const generateLines = document.querySelectorAll('.line-generate');
+                generateLines.forEach(line => {
+                    if (line.dataset.from === elementName || line.dataset.to === elementName) {
+                        line.setAttribute('stroke-width', '3');
+                        line.setAttribute('stroke', '#333');
+                    }
+                });
+
+                // 高亮相克连接线
+                const restraintLines = document.querySelectorAll('.line-restraint');
+                restraintLines.forEach(line => {
+                    if (line.dataset.from === elementName || line.dataset.to === elementName) {
+                        line.setAttribute('stroke-width', '2.5');
+                        line.setAttribute('stroke', '#000');
+                    }
+                });
+            }
+
+            // 重置所有元素和连接线
+            function resetAllElements() {
+                // 重置所有元素的transform
+                const allElements = document.querySelectorAll('.element');
+                allElements.forEach(el => {
+                    el.style.transform = 'scale(1)';
+                });
+
+                // 重置相生连接线
+                const generateLines = document.querySelectorAll('.line-generate');
+                generateLines.forEach(line => {
+                    line.setAttribute('stroke-width', '2');
+                    line.setAttribute('stroke', '#666');
+                });
+
+                // 重置相克连接线
+                const restraintLines = document.querySelectorAll('.line-restraint');
+                restraintLines.forEach(line => {
+                    line.setAttribute('stroke-width', '2');
+                    line.setAttribute('stroke', '#111');
+                });
+            }
+
+            // 创建相生连接线（弧形）
+            function createGenerateLines() {
+                for (let i = 0; i < elements.length; i++) {
+                    const startElement = elements[i];
+                    const endElement = elements[(i + 1) % elements.length];
+
+                    // 计算方向向量 (从起点元素指向终点元素)
+                    const dx = endElement.centerX - startElement.centerX;
+                    const dy = endElement.centerY - startElement.centerY;
+                    // 计算向量长度
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    // 计算单位向量
+                    const unitDx = dx / distance;
+                    const unitDy = dy / distance;
+
+                    // 计算起点 (当前元素边缘，正对下一个元素圆心)
+                    const startX = startElement.centerX + unitDx * elementRadius;
+                    const startY = startElement.centerY + unitDy * elementRadius;
+
+                    // 计算终点 (下一个元素边缘，正对当前元素圆心)
+                    const endX = endElement.centerX - unitDx * elementRadius;
+                    const endY = endElement.centerY - unitDy * elementRadius;
+
+                    // 计算弧线参数
+                    const startAngle = Math.atan2(startY - centerY, startX - centerX);
+                    const endAngle = Math.atan2(endY - centerY, endX - centerX);
+
+                    // 大弧标志: 根据角度差确定
+                    let angleDiff = endAngle - startAngle;
+                    if (angleDiff < 0) angleDiff += 2 * Math.PI;
+                    const largeArcFlag = angleDiff > Math.PI ? 1 : 0;
+
+                    // 顺时针标志: 使用1表示顺时针
+                    const sweepFlag = 1;
+
+                    // 创建路径
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+
+                    // 构建d属性 (使用椭圆弧命令A)
+                    const d = `M ${startX} ${startY} A ${generateRadius} ${generateRadius} 0 ${largeArcFlag} ${sweepFlag} ${endX} ${endY}`;
+
+                    path.setAttribute('d', d);
+                    path.setAttribute('class', 'line line-generate');
+                    path.setAttribute('marker-end', 'url(#arrow-generate)');
+                    path.setAttribute('data-from', startElement.name);
+                    path.setAttribute('data-to', endElement.name);
+
+                    generateLinesGroup.appendChild(path);
+                }
+            }
+
+            // 创建相克连接线（直线）
+            function createRestraintLines() {
+                restraintRelations.forEach(relation => {
+                    // 找到起点和终点元素
+                    const startElement = elements.find(el => el.name === relation.from);
+                    const endElement = elements.find(el => el.name === relation.to);
+
+                    if (!startElement || !endElement) return;
+
+                    // 计算方向向量 (从起点元素指向终点元素)
+                    const dx = endElement.centerX - startElement.centerX;
+                    const dy = endElement.centerY - startElement.centerY;
+                    // 计算向量长度
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    // 计算单位向量
+                    const unitDx = dx / distance;
+                    const unitDy = dy / distance;
+
+                    // 计算起点 (当前元素边缘，正对目标元素圆心)
+                    const startX = startElement.centerX + unitDx * elementRadius;
+                    const startY = startElement.centerY + unitDy * elementRadius;
+
+                    // 计算终点 (目标元素边缘，正对当前元素圆心)
+                    const endX = endElement.centerX - unitDx * elementRadius;
+                    const endY = endElement.centerY - unitDy * elementRadius;
+
+                    // 创建路径
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+
+                    // 构建d属性 (使用直线命令L)
+                    const d = `M ${startX} ${startY} L ${endX} ${endY}`;
+
+                    path.setAttribute('d', d);
+                    path.setAttribute('class', 'line line-restraint line-restraint-solid');
+                    path.setAttribute('marker-end', 'url(#arrow-restraint)');
+                    path.setAttribute('data-type', 'restraint');
+                    path.setAttribute('data-from', startElement.name);
+                    path.setAttribute('data-to', endElement.name);
+
+                    restraintLinesGroup.appendChild(path);
+                });
+            }
+
+            // 创建所有连接线
+            createGenerateLines();
+            createRestraintLines();
+        });
+    </script>
+</body>
+</html>
